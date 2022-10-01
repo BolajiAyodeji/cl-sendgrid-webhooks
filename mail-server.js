@@ -24,55 +24,114 @@ app.post("/callback", (req, res) => {
   if (req.method === "POST" && signature === encode) {
     const payload = req.body;
 
-    // Fetch the order summary from the payload
-    const order = payload.data.attributes;
+    // Filter payload and fetch the required order summary
+    const lineItemsArray = payload.included.filter(
+      (x) => x.type === "line_items" && x.attributes.item_type === "skus"
+    );
+
+    const filteredLineItemsArray = lineItemsArray.map((item) => {
+      return {
+        image_url: item.attributes.image_url,
+        name: item.attributes.name,
+        quantity: item.attributes.quantity,
+        formatted_total_amount: item.attributes.formatted_total_amount,
+      };
+    });
+
+    // You can use the returned values in filteredLineItemsArray to populate your SendGrid template
+    // But you will have to adjust the template to use the {{#each }} helper function
+    // Something like so:
+
+    // {{#each lineItems}}
+    // <div style="">
+    //   <img
+    //     src="{{{this.skuImage}}}"
+    //     alt="{{{this.skuName}}}"
+    //     style="..."
+    //   />
+    //   <span style="...">{{{this.skuName}}}</span>
+    //   <span style="...">x{{{this.skuQuantity}}}</span>
+    //   <span style="...">{{{this.skuFormattedAmount}}}</span>
+    // </div>
+    // {{/each}}
+
+    // But for the sake of this tutorial, we will convert the array to HTML table
+    // So we can use the {{{lineItems}}} variable directly in the SendGrid template
+
+    const inputData = {
+      customerName: payload.included[2].attributes.first_name,
+      customerEmail: payload.data.attributes.customer_email,
+      orderNumber: payload.data.attributes.number.toString(),
+      orderTimeStamp: payload.data.attributes.placed_at,
+      marketName: payload.included[0].attributes.name,
+      paymentMethod: payload.included[4].attributes.name,
+      shippingAddress: payload.included[2].attributes.full_address,
+      shipmentNumber: payload.included.find((x) => x.type === "shipments")
+        .attributes.number,
+      shippingMethod: payload.included.find(
+        (x) => x.type === "shipping_methods"
+      ).attributes.name,
+      lineItemsHtml:
+        `<table class="line-items">` +
+        filteredLineItemsArray
+          .map(
+            (item) =>
+              `<tr class="line-item"><td class="line-item-image"><img src="${item.image_url}" alt="${item.name}" /></td><td class="line-item-name">${item.name}</td><td class="line-item-qty">item${item.quantity}</td><td class="line-item-amount">${item.formatted_total_amount}</td></tr>`
+          )
+          .join("") +
+        `</table>`,
+      totalAmount: payload.data.attributes.formatted_subtotal_amount,
+      shippingAmount: payload.data.attributes.formatted_shipping_amount,
+      grandTotalAmount: payload.data.attributes.formatted_total_amount,
+    };
 
     // Send Email with SendGrid
     const sgMail = require("@sendgrid/mail");
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-    const msg = {
-      to: inputData.customerEmail,
-      from: {
-        email: "bolaji@commercelayer.io",
-        name: "Cake Store Team",
-      },
-      reply_to: {
-        email: "bolaji@commercelayer.io",
-        name: "No Reply",
-      },
-      templateId: process.env.SENDGRID_TEMPLATE_ID,
-      dynamic_template_data: {
-        customerName: inputData.customerName,
-        orderTimeStamp: inputData.orderTimeStamp,
-        dateFormat: "DD MMMM, YYYY h:mm:ss A",
-        timezoneOffset: "-0800",
-        shipmentNumber: `${
-          inputData.shipmentNumber.match(/#\d{8}\/S\/\d{3}/g)[0]
-        }`,
-        orderNumber: inputData.orderNumber,
-        customerEmail: inputData.customerEmail,
-        marketName: inputData.marketName,
-        paymentMethod: inputData.paymentMethod,
-        shippingAddress: inputData.shippingAddress,
-        shippingMethod: inputData.shippingMethod,
-        lineItems: inputData.lineItems,
-        totalAmount: inputData.totalAmount,
-        shippingAmount: inputData.shippingAmount,
-        grandTotalAmount: inputData.grandTotalAmount,
-      },
-    };
     sgMail
-      .send(msg)
-      .then(() => {
-        console.log(`Email sent to ${inputData.customerEmail}!`);
+      .send({
+        to: inputData.customerEmail,
+        from: {
+          email: "bolaji@commercelayer.io",
+          name: "Cake Store Team",
+        },
+        reply_to: {
+          email: "bolaji@commercelayer.io",
+          name: "No Reply",
+        },
+        templateId: process.env.SENDGRID_TEMPLATE_ID,
+        dynamicTemplateData: {
+          customerName: inputData.customerName,
+          orderTimeStamp: inputData.orderTimeStamp,
+          dateFormat: "MMMM DD, YYYY",
+          shipmentNumber: inputData.shipmentNumber,
+          orderNumber: inputData.orderNumber,
+          customerEmail: inputData.customerEmail,
+          marketName: inputData.marketName,
+          paymentMethod: inputData.paymentMethod,
+          shippingAddress: inputData.shippingAddress,
+          shippingMethod: inputData.shippingMethod,
+          lineItems: inputData.lineItemsHtml,
+          totalAmount: inputData.totalAmount,
+          shippingAmount: inputData.shippingAmount,
+          grandTotalAmount: inputData.grandTotalAmount,
+        },
+      })
+      .then((response) => {
+        if (response.statusCode === 202) {
+          res.status(200).json({
+            successMessage: `Email sent to customer (${inputData.customerEmail})`,
+            timeStamp: response.headers.date,
+          });
+        }
       })
       .catch((error) => {
-        console.error(error);
+        res.status(500).json({
+          statusCode: error.code,
+          errorMessage: error.response.body,
+        });
       });
-    res.status(200).json({
-      message: "Email sent to customer!",
-    });
   } else {
     res.status(401).json({
       error: "Unauthorized: Invalid signature",
