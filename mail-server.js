@@ -76,7 +76,7 @@ app.post("/callback", (req, res) => {
         filteredLineItemsArray
           .map(
             (item) =>
-              `<tr class="line-item"><td class="line-item-image"><img src="${item.image_url}" alt="${item.name}" /></td><td class="line-item-name">${item.name}</td><td class="line-item-qty">item${item.quantity}</td><td class="line-item-amount">${item.formatted_total_amount}</td></tr>`
+              `<tr class="line-item"><td class="line-item-image"><img src="${item.image_url}" alt="${item.name}" /></td><td class="line-item-name">${item.name}</td><td class="line-item-qty">${item.quantity}</td><td class="line-item-amount">${item.formatted_total_amount}</td></tr>`
           )
           .join("") +
         `</table>`,
@@ -119,17 +119,16 @@ app.post("/callback", (req, res) => {
         },
       })
       .then((response) => {
-        if (response.statusCode === 202) {
-          res.status(200).json({
-            successMessage: `Email sent to customer (${inputData.customerEmail})`,
-            timeStamp: response.headers.date,
-          });
-        }
+        console.log(response);
+        res.status(200).json({
+          message: `Email sent to customer (${inputData.customerEmail})!`,
+          response: response,
+        });
       })
       .catch((error) => {
+        console.error(error);
         res.status(500).json({
-          statusCode: error.code,
-          errorMessage: error.response.body,
+          error: error,
         });
       });
   } else {
