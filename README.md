@@ -1,6 +1,6 @@
 # cl-sendgrid-webhooks
 
-Sample code and templates for sending emails to customers using Commerce Layer Webhooks, Zapier Code Runner, Nodejs, and SendGrid API. To get started, kindly read [this comprehensive tutorial]() on Commerce Layer's blog.
+Sample code and templates for sending emails to customers using Commerce Layer Webhooks, Zapier Code Runner, Nodejs, and SendGrid API. To get started, kindly read [this comprehensive tutorial](https://commercelayer.io/blog/how-to-send-templated-emails-with-commerce-layer-and-sendgrid) on Commerce Layer's blog.
 
 ---
 
